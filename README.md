@@ -24,3 +24,5 @@ These datasets are considered to be added
 - [x] Load Multiple falls in one video
 - [ ] Train-Test-Validate splits
     - [ ] Keep original split if available
+- [x] Select subset of clips per dataset
+- [ ] Download dataset from sources
