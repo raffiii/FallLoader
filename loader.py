@@ -5,7 +5,7 @@ import json
 from typing import List, Union, Tuple
 
 class Scene:
-    def __init__(self, filename: str, frames: Tuple[int | None, int | None], fall_frame: int | None):
+    def __init__(self, filename: str, frames: Tuple[int | None, int | None] = (None,None), fall_frame: int | None = None):
         self.filename, frames, fall_frame = filename, frames, fall_frame
 
 class FallLoader:
@@ -37,7 +37,7 @@ class MultiViewLoader(FallLoader):
                     for cam_n in cams
                     ]
         # select all frames in each file
-        return [Scene(f,(None,None), None) for f in files]
+        return [Scene(f) for f in files]
 
 
 class OopsLoader(FallLoader):
@@ -67,9 +67,8 @@ class OopsLoader(FallLoader):
         labels = {}
         return [
             Scene(
-                file, 
-                (None, None), 
-                None if labels[file]["n_notfound"] > 1 else sorted(labels[file]["t"])[1]
+                f"{self.videos_dir}/{split}/{file}", 
+                fall_frame=None if labels[file]["n_notfound"] > 1 else sorted(labels[file]["t"])[1]
             ) 
             for file, split in files 
             if file in labels
