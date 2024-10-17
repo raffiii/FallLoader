@@ -5,9 +5,10 @@ from PIL import Image
 import json
 from typing import List
 import os.path
+from dataclasses import dataclass
 
 
-class FallDataset(Dataset):
+class _FallDataset(Dataset):
 
     def __init__(self):
         self.image_paths = []
@@ -24,7 +25,29 @@ class FallDataset(Dataset):
         return image, label
 
 
-class MultiCameraView(FallDataset):
+@dataclass
+class FallSample:
+    frames: Image  # TODO check type
+    dataset: int
+    activity: int
+    fall_frame: int | None
+    recovery_frame: int | None
+
+    dataset_map = [
+        "MultiCameraFall",
+        "OCCU",
+        "EDF",
+        "OOPS",
+        "Le2i",
+        "CAUCAFall",
+        "UR_Fall",
+        "MUVIM",
+        "FDPS_v2",
+    ]
+    activities = ["FallForward", "FallLateral", "FallBackward", "ADL"]
+
+
+class MultiCameraView(_FallDataset):
     def __init__(self, root_dir: str, format="mp4"):
         """
         Args:
@@ -44,7 +67,7 @@ class MultiCameraView(FallDataset):
         self.labels = ["fall"] * (22 * 8) + ["adl"] * (2 * 8)
 
 
-class Oops(FallDataset):
+class Oops(_FallDataset):
     def __init__(self, root_dir: str, scenes: int | List[str] | None = None):
         super().__init__()
         self.root_dir = root_dir
