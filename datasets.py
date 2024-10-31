@@ -1,28 +1,40 @@
 import os
 import torch
 from torch.utils.data import Dataset
-from PIL import Image
-import json, csv
+import csv
 from typing import List
 import os.path
-import torchvision.io as io
 from dataclasses import dataclass
+from videoutils import load_video_segment
 
 
 class FallDataset(Dataset):
-    def __init__(self):
-        self.samples = []
+    def __init__(self, query_mode="action"):
+        self.samples: List[FallSampleData] = []
+        self.query = lambda x: x
+        self.set_query_mode(query_mode)
 
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self, idx, mode="action"):
-        loaded_sample: FallSample = self.samples[idx].load()
+    def set_query_mode(self, mode="action"):
+        def action(sample: FallSample):
+            return sample.frames, sample.activity
+
+        def domain(sample: FallSample):
+            return sample.frames, sample.dataset
+
+        def time(sample: FallSample):
+            return sample.frames, sample.fall_frame
+
+        def default(sample: FallSample):
+            return sample
+
         if mode.lower() in ["fall", "action", "activity", "label"]:
-            return loaded_sample.frames, loaded_sample.activity
-        if mode.lower() in ["dataset", "domain"]:
-            return loaded_sample.frames, loaded_sample.dataset
-        if mode.lower() in [
+            self.query = action
+        elif mode.lower() in ["dataset", "domain"]:
+            self.query = domain
+        elif mode.lower() in [
             "fall_start",
             "start_fall",
             "start",
@@ -30,10 +42,15 @@ class FallDataset(Dataset):
             "starttime",
             "start_time",
         ]:
-            return loaded_sample.frames, loaded_sample.fall_frame
-        if mode.lower() in ["full", "all"]:
-            return loaded_sample
-        return loaded_sample
+            self.query = time
+        elif mode.lower() in ["full", "all"]:
+            self.query = default
+        else:
+            self.query = default
+
+    def __getitem__(self, idx):
+        loaded_sample: FallSample = self.samples[idx].load(target_fps=30)
+        return self.query(loaded_sample)
 
 
 @dataclass
@@ -45,17 +62,15 @@ class FallSampleData:
     fall_frame: int | None
     recovery_frame: int | None
     # Begin and end frame of the fall/ADL subsequence of the full video
-    begin_freme: int | None
+    begin_frame: int | None
     end_frame: int | None
     train_split: bool
 
-    def load(self):
-        video_tensor, _, _ = io.read_video(
-            self.path,
-            start_pts=self.start_frame,
-            end_pts=self.end_frame,
-            pts_unit="frames",
+    def load(self, target_fps):
+        np_video = load_video_segment(
+            self.path, self.begin_frame, self.end_frame, target_fps
         )
+        video_tensor = torch.from_numpy(np_video)
         return FallSample(
             self.idx,
             video_tensor,
@@ -95,26 +110,14 @@ class FallSample:
         3: "FallLateral",
     }
 
-    @classmethod
-    def load_sample(sample: FallSampleData):
-        video_tensor, _, _ = io.read_video(
-            sample.path,
-            start_pts=sample.start_frame,
-            end_pts=sample.end_frame,
-            pts_unit="frames",
-        )
-        return FallSample(
-            video_tensor,
-            sample.dataset,
-            sample.activity,
-            sample.fall_frame,
-            sample.recovery_frame,
-        )
-
 
 class SuperSet(FallDataset):
-    def __init__(self, base_path, metadata_file):
-        super().__init__()
+    def __init__(self, base_path, metadata_file, samples=None, query_mode="action"):
+        super().__init__(query_mode=query_mode)
+        self.base_path, self.metadata_file = base_path, metadata_file
+        if samples is not None:
+            self.samples = samples
+            return
         rows = []
         with open(os.path.join(base_path, metadata_file)) as f:
             csvreader = csv.reader(f)
@@ -123,7 +126,41 @@ class SuperSet(FallDataset):
             raise Exception("No metadata available")
         self.samples = [
             FallSampleData(
-                idx, path, dataset_id, label, None, None, start, end, train_split
+                int(idx),
+                os.path.join(base_path, path),
+                int(dataset_id),
+                int(label),
+                None,
+                None,
+                float(start),
+                float(end),
+                train_split,
             )
-            for idx, path, dataset_id, _subject, start, end, label, _cls, _subjects, train_split in rows
+            for idx, path, dataset_id, subject, start, end, label, cls, subjects, train_split in rows[
+                1:
+            ]
         ]
+
+    def filter(self, filter):
+        filtered_samples = [sample for sample in self.samples if filter(sample)]
+        return SuperSet(None, None, samples=filtered_samples)
+
+
+if __name__ == "__main__":
+    base_path = "../test_data"
+
+    def path_exist_filter(sample: FallSampleData):
+        return os.path.exists(sample.path)
+
+    dataset = SuperSet(base_path, "relative_superset.csv").filter(path_exist_filter)
+    print(len(dataset.samples))
+
+    def collate(batch):
+        return tuple(zip(batch))
+        # return (torch.stack([video for video, _ in batch]),torch.stack([label for _, label in batch]))
+
+    data_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=4, shuffle=True, num_workers=4, collate_fn=collate
+    )
+    for videos, labels in data_loader:
+        print(len(videos), len(labels))
