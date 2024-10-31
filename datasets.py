@@ -62,13 +62,16 @@ class FallSampleData:
     fall_frame: int | None
     recovery_frame: int | None
     # Begin and end frame of the fall/ADL subsequence of the full video
-    begin_frame: int | None
-    end_frame: int | None
+    begin_time_ms: int | None
+    end_time_ms: int | None
     train_split: bool
 
     def load(self, target_fps):
         np_video = load_video_segment(
-            self.path, self.begin_frame, self.end_frame, target_fps
+            self.path,
+            self.begin_time_ms / 1000.0,
+            self.end_time_ms / 1000.0,
+            target_fps,
         )
         video_tensor = torch.from_numpy(np_video)
         return FallSample(
@@ -146,8 +149,8 @@ class SuperSet(FallDataset):
         return SuperSet(None, None, samples=filtered_samples)
 
 
-if __name__ == "__main__":
-    base_path = "../test_data"
+def main():
+    base_path = "/home/rflbr/projects/Studium/MA/test_data"
 
     def path_exist_filter(sample: FallSampleData):
         return os.path.exists(sample.path)
@@ -160,7 +163,13 @@ if __name__ == "__main__":
         # return (torch.stack([video for video, _ in batch]),torch.stack([label for _, label in batch]))
 
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=4, shuffle=True, num_workers=4, collate_fn=collate
+        dataset,
+        batch_size=4,
+        shuffle=True,
+        num_workers=4,  # collate_fn=collate
     )
     for videos, labels in data_loader:
         print(len(videos), len(labels))
+
+
+main()

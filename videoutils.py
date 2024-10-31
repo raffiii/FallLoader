@@ -41,15 +41,14 @@ def load_video_segment(input_path, start_time, end_time, target_fps):
     container.seek(int(start_time * av.time_base), stream=container.streams.video[0])
 
     # Load frames until reaching end_time
-    for packet in container.demux(video=0):
-        for frame in packet.decode():
-            if frame.time >= end_time:
-                return np.stack(frames) if frames else np.array([])
+    for frame in container.decode(video=0):
+        if frame.time >= end_time:
+            return np.stack(frames) if frames else np.array([])
 
-            # Capture frames at the specified frame interval to adjust to target FPS
-            if frame.time >= current_time and (frame.index % frame_interval == 0):
-                frames.append(frame.to_ndarray(format="rgb24"))
-                current_time += 1.0 / target_fps
+        # Capture frames at the specified frame interval to adjust to target FPS
+        if frame.time >= current_time and (frame.index % frame_interval == 0):
+            frames.append(frame.to_ndarray(format="rgb24"))
+            current_time += 1.0 / target_fps
 
     return np.stack(frames) if frames else np.array([])
 
