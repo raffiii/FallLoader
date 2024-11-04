@@ -145,31 +145,40 @@ class SuperSet(FallDataset):
         ]
 
     def filter(self, filter):
-        filtered_samples = [sample for sample in self.samples if filter(sample)]
+        filtered_samples = [
+            sample for i, sample in enumerate(self.samples) if filter(sample, i)
+        ]
         return SuperSet(None, None, samples=filtered_samples)
 
 
 def main():
     base_path = "/home/rflbr/projects/Studium/MA/test_data"
 
-    def path_exist_filter(sample: FallSampleData):
+    def path_exist_filter(sample: FallSampleData, idx):
         return os.path.exists(sample.path)
 
-    dataset = SuperSet(base_path, "relative_superset.csv").filter(path_exist_filter)
+    def take_first_n(n):
+        def filter(sample, idx):
+            return idx < n
+
+        return filter
+
+    dataset = SuperSet(base_path, "relative_superset.csv").filter(
+        path_exist_filter
+    )  # .filter(take_first_n(4))
     print(len(dataset.samples))
 
     def collate(batch):
-        return tuple(zip(batch))
+        return tuple(zip(*batch))
         # return (torch.stack([video for video, _ in batch]),torch.stack([label for _, label in batch]))
 
     data_loader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=4,
-        shuffle=True,
-        num_workers=4,  # collate_fn=collate
+        dataset, batch_size=4, shuffle=True, num_workers=1, collate_fn=collate
     )
-    for videos, labels in data_loader:
+    for data in data_loader:
+        videos, labels = data
         print(len(videos), len(labels))
+        print(videos[0].shape, labels[0])
 
 
 main()
