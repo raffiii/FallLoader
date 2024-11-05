@@ -9,7 +9,8 @@ from videoutils import load_video_segment
 
 
 class FallDataset(Dataset):
-    def __init__(self, query_mode="action"):
+    def __init__(self, query_mode="action", processing=[]):
+        self.processing = processing
         self.samples: List[FallSampleData] = []
         self.query = lambda x: x
         self.set_query_mode(query_mode)
@@ -50,7 +51,8 @@ class FallDataset(Dataset):
 
     def __getitem__(self, idx):
         loaded_sample: FallSample = self.samples[idx].load(target_fps=30)
-        return self.query(loaded_sample)
+        proccessed = loaded_sample.process_frames(self.processing)
+        return self.query(proccessed)
 
 
 @dataclass
@@ -113,11 +115,28 @@ class FallSample:
         3: "FallLateral",
     }
 
+    def process_frames(self, processing):
+        frames = self.frames
+        for process in processing:
+            frames = process(self.frames)
+        return FallSample(
+            self.idx,
+            frames,
+            self.dataset,
+            self.activity,
+            self.fall_frame,
+            self.recovery_frame,
+            self.train_split,
+        )
+
 
 class SuperSet(FallDataset):
-    def __init__(self, base_path, metadata_file, samples=None, query_mode="action"):
-        super().__init__(query_mode=query_mode)
+    def __init__(
+        self, base_path, metadata_file, samples=None, query_mode="action", processing=[]
+    ):
+        super().__init__(query_mode=query_mode, processing=processing)
         self.base_path, self.metadata_file = base_path, metadata_file
+        self.query_mode = query_mode
         if samples is not None:
             self.samples = samples
             return
@@ -148,32 +167,39 @@ class SuperSet(FallDataset):
         filtered_samples = [
             sample for i, sample in enumerate(self.samples) if filter(sample, i)
         ]
-        return SuperSet(None, None, samples=filtered_samples)
+        return SuperSet(
+            None,
+            None,
+            samples=filtered_samples,
+            query_mode=self.query_mode,
+            processing=self.processing,
+        )
+
+
+def collate_tuple(batch):
+    return tuple(zip(*batch))
+
+
+def take_first_n(n):
+    def filter(sample, idx):
+        return idx < n
+
+    return filter
+
+
+def path_exist_filter(sample: FallSampleData, idx):
+    return os.path.exists(sample.path)
 
 
 def main():
     base_path = "/home/rflbr/projects/Studium/MA/test_data"
 
-    def path_exist_filter(sample: FallSampleData, idx):
-        return os.path.exists(sample.path)
-
-    def take_first_n(n):
-        def filter(sample, idx):
-            return idx < n
-
-        return filter
-
     dataset = SuperSet(base_path, "relative_superset.csv").filter(
         path_exist_filter
     )  # .filter(take_first_n(4))
     print(len(dataset.samples))
-
-    def collate(batch):
-        return tuple(zip(*batch))
-        # return (torch.stack([video for video, _ in batch]),torch.stack([label for _, label in batch]))
-
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=4, shuffle=True, num_workers=1, collate_fn=collate
+        dataset, batch_size=4, shuffle=True, num_workers=1, collate_fn=collate_tuple
     )
     for data in data_loader:
         videos, labels = data

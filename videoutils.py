@@ -81,9 +81,20 @@ def load_video_segment(input_path, start_time, end_time, target_fps):
     return load_video(input_path, frame_extractor, frame_processor)
 
 
-def resize_frames(frames, width, height):
-    resized_frames = []
-    for frame in frames:
-        resized_frame = cv2.resize(frame, (width, height))
-        resized_frames.append(resized_frame)
-    return resized_frames
+def resize_frames(width, height):
+    def resize(frames):
+        resized_frames = []
+        for frame in frames:
+            resized_frame = cv2.resize(frame, (width, height))
+            resized_frames.append(resized_frame)
+        return resized_frames
+
+    return resize
+
+
+def sample_frames(num_frames):
+    def sample(frames):
+        frame_indices = np.linspace(0, len(frames) - 1, num_frames, dtype=int)
+        return np.stack([frames[i] for i in frame_indices])
+
+    return sample
