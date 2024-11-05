@@ -181,4 +181,5 @@ def main():
         print(videos[0].shape, labels[0])
 
 
-main()
+if __name__ == "__main__":
+    main()
