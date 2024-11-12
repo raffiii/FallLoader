@@ -107,6 +107,7 @@ class FallSample:
         # "Le2i",
         # "MUVIM",
         # "FDPS_v2",
+        3: "CMDFall",
     }
     activities = {
         0: "No Fall",
