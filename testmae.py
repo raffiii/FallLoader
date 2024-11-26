@@ -26,7 +26,7 @@ def test_dataset_with_mae(video):
 
 def get_loader(path, filter=[]):
     dataset = falldata.SuperSet(
-        path, "relative_superset.csv", processing=[sample_frames(16)]
+        path, "relative_superset.csv", processing=[sample_frames(16, 4)]
     )
     for f in filter:
         dataset = dataset.filter(f)
@@ -41,8 +41,8 @@ def get_loader(path, filter=[]):
 
 
 if __name__ == "__main__":
-    video = list(np.random.randint(0, 255, (16, 3, 480, 720)))
-    test_dataset_with_mae(video)
+    video = np.random.randint(0, 255, (16, 3, 480, 720))
+    test_dataset_with_mae(list(video))
     loader = get_loader(
         "/home/rflbr/projects/Studium/MA/test_data",
         filter=[falldata.path_exist_filter, falldata.take_first_n(10)],

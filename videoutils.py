@@ -92,9 +92,32 @@ def resize_frames(width, height):
     return resize
 
 
-def sample_frames(num_frames):
+def sample_frames(num_frames, subsample_rate):
+
     def sample(frames):
-        frame_indices = np.linspace(0, len(frames) - 1, num_frames, dtype=int)
-        return np.stack([frames[i] for i in frame_indices])
+        indices = sample_frame_indices(num_frames, subsample_rate, len(frames))
+        return np.stack([frames[i] for i in indices])
 
     return sample
+
+
+def sample_frame_indices(clip_len, frame_sample_rate, seg_len):
+    """
+    Sample frame indices for a video clip. The indices are sampled to form a clip of `clip_len` frames sampling
+    one out of every `frame_sample_rate` frames from a segment of length `seg_len`.
+    (inspired by https://colab.research.google.com/github/NielsRogge/Transformers-Tutorials/blob/master/VideoMAE/Quick_inference_with_VideoMAE.ipynb#scrollTo=6LBAV-7u3cI6)
+
+    Args:
+        clip_len (int): Number of frames in the clip.
+        frame_sample_rate (int): Sampling rate for frames in the clip.
+        seg_len (int): Length of the segment to sample frames from.
+    """
+    converted_len = int(clip_len * frame_sample_rate)
+    end_idx = np.random.randint(converted_len, max(converted_len + 1, seg_len))
+    str_idx = end_idx - converted_len
+    index = (
+        np.linspace(str_idx, end_idx, num=clip_len, endpoint=False)
+        .clip(str_idx, seg_len)
+        .astype(np.int64)
+    )
+    return index
